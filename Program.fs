@@ -87,15 +87,6 @@ let print_tokens ast =
 
 let pemdas = [Exponent; Times; Divide; Plus; Minus]
 
-// type operator =
-//   | Plus
-//   | Minus
-//   | Times
-//   | Divide
-//   | Modulo
-//   | Exponent
-
-
 let apply_operation a b = function
   | Plus -> a + b
   | Minus -> a - b
@@ -105,9 +96,24 @@ let apply_operation a b = function
   | Exponent -> a + b
 
 
-let rec evaluate = function
+let rec evaluate_operator current_op = function
   | Number a :: Operator op :: Number b :: tl ->
-    evaluate ([Number (apply_operation a b op)] @ tl)
+    printfn "Evaluating %f %s %f" a (token_to_string (Operator op)) b
+    if current_op = op then [Number (apply_operation a b op)] @ tl else [Number a; Operator op; Number b] @ tl
   | r -> r
 
-print_tokens (evaluate tokens)
+let evaluate tokens =
+  let rec aux lst ops =
+    let use_ops =
+      match ops with
+      | [] -> pemdas
+      | x -> x in
+    // (List.map token_to_string lst) |> String.concat ", " |> printfn "%s"
+
+    match evaluate_operator (List.head use_ops) lst with
+    | [Number n] -> n
+    | other -> aux other (List.tail use_ops)
+  in aux tokens pemdas
+
+
+printfn "%f" (evaluate tokens)
