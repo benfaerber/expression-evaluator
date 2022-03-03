@@ -9,6 +9,7 @@
 type token =
   | Number of float
   | Operator of operator
+  | Group of token list
 
 
 module Lexer =
@@ -46,6 +47,25 @@ module Lexer =
       | Some op -> Some op, s[1..]
       | _ -> None, s)
     | _ -> None, s
+
+  let lex_group (s: string) =
+    let is_open c = c = '(' in
+    let is_close c = c = ')' in
+
+    if s |> Seq.toList |> List.head |> is_open then
+      let folder (l_open, l_close, acc) chr =
+        let c_open = l_open + (if is_open chr then 1 else 0) in
+        let c_close = l_close + (if is_close chr then 1 else 0) in
+
+        c_open, c_close, if c_open <> 0 && c_open = c_close then acc else acc ^ chr.ToString()
+      in
+
+      let _, _, literal = List.fold folder (0, 0, "") (Seq.toList s) in
+      let tliteral = literal |> Seq.toList |> List.tail |> System.String.Concat
+      Some (generate_ast tliteral), s[literal.Length..]
+    else
+      None, s
+
 
   let lex_token (s: string) =
     let lexers = [lex_number; lex_operator] in
@@ -126,3 +146,6 @@ let evaluate_expression expression = expression |> Lexer.generate_ast |> Evaluat
 
 printfn "%f" (evaluate_expression "23+13.5*3/4")
 printfn "%f" (evaluate_expression "8+4-2^4/10")
+
+let a, b = Lexer.lex_group "(1+2+(3+4)+3)+10"
+printfn "%s" a.Value
