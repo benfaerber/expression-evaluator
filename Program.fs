@@ -23,9 +23,9 @@ let rec string_of_token = function
   | Operator Modulo -> "Modulo"
   | Operator Exponent -> "Exponent"
 
-let should_debug_print = true
+let is_debug_mode = true
 let debug_print value =
-  if should_debug_print then
+  if is_debug_mode then
     printfn "%s" value
 
 let print_token token = token |> string_of_token |> debug_print
@@ -34,10 +34,15 @@ let print_ast ast =
   List.iter print_token ast
   debug_print ""
 
-let does_sleep = true
-let sleep () = if does_sleep then Async.Sleep(500) |> Async.RunSynchronously
+let sleep () = if is_debug_mode then Async.Sleep(500) |> Async.RunSynchronously
 
 module Lexer =
+
+  let clean_expression (s: string) =
+    let allowed = "01234567890+-*/%^.()" |> Seq.toList in
+    let cleaner = List.filter (fun l -> List.contains l allowed)
+    s |> Seq.toList |> cleaner |> System.String.Concat
+
 
   let lex_number (s: string) =
     let first = s |> Seq.toList |> List.head in
@@ -77,20 +82,45 @@ module Lexer =
       | _ -> None, s)
     | _ -> None, s
 
-  let lex_group (s: string) =
+  let lex_group2 (s: string) =
     if (s |> Seq.toList |> List.head) = '(' then
       let folder (l_open, l_close, acc) chr =
-        let tally goal counter = counter + (if goal = chr then 1 else 0) in
-        let c_open = tally '(' l_open in
-        let c_close = tally ')' l_close in
-        let next_acc = if c_open <> 0 && c_open = c_close then acc else acc ^ chr.ToString() in
+        if l_open = -1 then
+          l_open, l_close, acc
+        else
+          let tally goal counter = counter + (if goal = chr then 1 else 0) in
+          let c_open = tally '(' l_open in
+          let c_close = tally ')' l_close in
+          printfn "%d %d %s" c_open c_close (acc ^ chr.ToString())
 
-        c_open, c_close, next_acc
-      in
+          if c_open = c_close then
+            -1, -1, acc ^ chr.ToString()
+          else
+            c_open, c_close, acc ^ chr.ToString()
+        in
 
       let _, _, literal = List.fold folder (0, 0, "") (Seq.toList s) in
-      // debug_print (sprintf "Group Literal: %s" literal[1..])
-      Some (RawGroup literal[1..]), s[literal.Length+1..]
+      debug_print (sprintf "Group Literal: %s" literal[1..literal.Length-2])
+      Some (RawGroup literal[1..literal.Length-2]), s[literal.Length..]
+    else
+      None, s
+
+  let lex_group (s: string) =
+    if (s |> Seq.toList |> List.head) = '(' then
+      let folder (l_open, l_close, going, acc) chr =
+        if not going then
+          0, 0, false, acc
+        else
+          let tally goal counter = counter + (if goal = chr then 1 else 0) in
+          let c_open = tally '(' l_open in
+          let c_close = tally ')' l_close in
+
+          c_open, c_close, not (c_open = c_close), acc ^ chr.ToString()
+      in
+
+      let _, _, _, literal = List.fold folder (0, 0, true, "") (Seq.toList s) in
+      debug_print (sprintf "Group Literal: %s" literal[1..literal.Length-2])
+      Some (RawGroup literal[1..literal.Length-2]), s[literal.Length..]
     else
       None, s
 
@@ -112,16 +142,16 @@ module Lexer =
     | _ -> true) ast
 
   let rec generate_ast (s: string) =
-    let head = lex_token s in
+    let head = lex_token (s |> clean_expression) in
     let first_token, _ = head in
 
     let optional_ast = head |> List.unfold (
       function
-      | _, "" -> None
       | Some (RawGroup g), u ->
         let sub_group = Some (Group (generate_ast g)) in
         print_ast (generate_ast g)
         Some (sub_group, (sub_group, u))
+      | _, "" -> None
       | _, u ->
         let next_p, next_u = lex_token u in
         match next_p with
@@ -198,21 +228,43 @@ module Expression =
     debug_print "-------------"
 
   let evaluate exp =
-    let ast = exp |> Lexer.generate_ast in
+    let ast = exp |> Lexer.clean_expression |> Lexer.generate_ast in
     debug_expression_printer exp ast
     ast |> Evaluater.evaluate_ast
 
   let print_result exp =
     printfn "%f" (exp |> evaluate)
 
-let complex_expression_1 = "(23+(135-32)+2)*3/4"
-let complex_expression_2 = "73/3+(4^2+(8-3))"
-let complex_expression_3 = "~40+20"
+  let repl () =
+    printfn "Expression REPL"
+    let rec aux () =
+      printf "> "
+      let inp = System.Console.ReadLine() in
+
+      if inp = "quit" || inp = "q" then
+        printfn "Bye!"
+      else
+        let solution = evaluate inp in
+        printfn "- %f" solution
+        aux ()
+    in aux ()
+
+let runner =
+  let is_repl_mode = true
+  if is_repl_mode then
+    Expression.repl ()
+  else
+
+    // let complex_expression_1 = "(23+(135-32)+2)*3/4"
+    // let complex_expression_2 = "73/3+(4^2+(8-3))"
+    // let complex_expression_3 = "~40+20"
 
 
-// print_ast (Lexer.generate_ast complex_expression_2)
-// printfn "%f" (evaluate_expression "23+13.5*3/4")
-// printfn "%f" (evaluate_expression "8+4-2^4/10")
-printfn "%f" (Expression.evaluate complex_expression_1)
-printfn "%f" (Expression.evaluate complex_expression_2)
-printfn "%f" (Expression.evaluate complex_expression_3)
+    // // print_ast (Lexer.generate_ast complex_expression_2)
+    // // printfn "%f" (evaluate_expression "23+13.5*3/4")
+    // // printfn "%f" (evaluate_expression "8+4-2^4/10")
+    // printfn "%f" (Expression.evaluate complex_expression_1)
+    // printfn "%f" (Expression.evaluate complex_expression_2)
+    printfn "%f" (Expression.evaluate "(1+1)")
+
+/// Expression.repl ()
