@@ -12,10 +12,10 @@ type token =
   | RawGroup of string
   | Group of token list
 
-let rec token_to_string = function
+let rec string_of_token = function
   | Number n -> sprintf "Number (%f)" n
   | RawGroup rg -> sprintf "RawGroup (%s)" rg
-  | Group g -> sprintf "Group (%s)" (List.map token_to_string g |> String.concat ", ")
+  | Group g -> sprintf "Group (%s)" (List.map string_of_token g |> String.concat ", ")
   | Operator Add -> "Add"
   | Operator Subtract -> "Subtract"
   | Operator Multiply -> "Multiply"
@@ -23,6 +23,16 @@ let rec token_to_string = function
   | Operator Modulo -> "Modulo"
   | Operator Exponent -> "Exponent"
 
+let print_ast ast =
+  printfn "AST:"
+  List.iter (fun t -> t |> string_of_token |> printfn "%s") ast
+  printfn ""
+
+let print_tokens ast =
+  List.iter (fun t -> printfn "%s" (string_of_token t)) ast
+
+let does_sleep = true
+let sleep () = if does_sleep then Async.Sleep(500) |> Async.RunSynchronously
 
 module Lexer =
 
@@ -75,10 +85,10 @@ module Lexer =
       in
 
       let _, _, literal = List.fold folder (0, 0, "") (Seq.toList s) in
+      printfn "Group Literal: %s" literal[1..]
       Some (RawGroup literal[1..]), s[literal.Length+1..]
     else
       None, s
-
 
   let lex_token (s: string) =
     let lexers = [lex_number; lex_group; lex_operator] in
@@ -88,33 +98,38 @@ module Lexer =
       | _ -> false) in
     found_lexer s
 
+  let clean_ast ast =
+    List.filter (function
+    | RawGroup _ -> false
+    | _ -> true) ast
+
   let rec generate_ast (s: string) =
     let head = lex_token s in
     let first_token, _ = head in
 
+    printfn "RR: %s" s
     let optional_ast = head |> List.unfold (
       function
       | _, "" -> None
       | Some (RawGroup g), u ->
+        printfn "U: %s" u
         let sub_group = Some (Group (generate_ast g)) in
+        print_ast (generate_ast g)
         Some (sub_group, (sub_group, u))
       | _, u ->
         let next_p, next_u = lex_token u in
-        Some (next_p, (next_p, next_u))) in
+        match next_p with
+        | Some (RawGroup rg) ->
+          let sub_ast = Some (Group (generate_ast rg)) in
+          Some (sub_ast, (sub_ast, next_u))
+        | _ -> Some (next_p, (next_p, next_u))) in
 
     let tail = optional_ast |> List.filter (
       fun opt -> opt.IsSome) |> List.map (
         fun opt -> opt.Value) in
 
-    [first_token.Value] @ tail
+    clean_ast ([first_token.Value] @ tail)
 
-  // (fun acc (p, u) -> acc @ [lex_token u]) (lex_token s)
-
-let print_ast ast =
-  List.iter (fun t -> t |> token_to_string |> printfn "%s") ast
-
-let print_tokens ast =
-  List.iter (fun t -> printfn "%s" (token_to_string t)) ast
 
 module Evaluater =
   let pemdas = [Exponent; Multiply; Divide; Add; Subtract]
@@ -137,23 +152,47 @@ module Evaluater =
     | r -> r
 
 
-  let evaluate_ast tokens =
-    let rec aux lst ops =
+  let rec evaluate_ast tokens =
+    let rec aux ast ops =
       let use_ops =
         match ops with
         | [] -> pemdas
         | x -> x in
       // (List.map token_to_string lst) |> String.concat ", " |> printfn "%s"
 
+      sleep ()
+      match ast with
+      | Group g :: tl ->
+        aux (aux g pemdas @ tl) use_ops
+      | Number n :: Operator op :: Group g :: tl ->
+        let res = aux ([Number n; Operator op;] @ aux g pemdas) pemdas in
+        aux (res @ tl) pemdas
+      | ts -> (
+        match evaluate_operator (List.head use_ops) ts with
+        | [Number n] -> [Number n]
+        | other ->
+          print_ast other
+          aux other (List.tail use_ops))
+    in
 
-      match evaluate_operator (List.head use_ops) lst with
-      | [Number n] -> n
-      | other -> aux other (List.tail use_ops)
-    in aux tokens pemdas
+    match aux tokens pemdas with
+    | [Number n] -> n
+    | _ -> 0
 
-let evaluate_expression expression = expression |> Lexer.generate_ast |> Evaluater.evaluate_ast
+let evaluate_expression expression =
+  let ast = expression |> Lexer.generate_ast in
+  printfn "Complete AST: "
+  print_ast ast
+  printfn ""
 
+  Evaluater.evaluate_ast ast
+
+let complex_expression_1 = "(23+(135-32)+2)*3/4"
+let complex_expression_2 = "73/3+(4^2+(8-3))"
+
+
+print_ast (Lexer.generate_ast complex_expression_2)
 // printfn "%f" (evaluate_expression "23+13.5*3/4")
 // printfn "%f" (evaluate_expression "8+4-2^4/10")
-
-print_ast (Lexer.generate_ast "(23+(135-32)+2)*3/4")
+// printfn "%f" (evaluate_expression complex_expression_1)
+printfn "%f" (evaluate_expression complex_expression_2)
