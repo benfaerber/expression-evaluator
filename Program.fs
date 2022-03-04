@@ -9,7 +9,19 @@
 type token =
   | Number of float
   | Operator of operator
+  | RawGroup of string
   | Group of token list
+
+let rec token_to_string = function
+  | Number n -> sprintf "Number (%f)" n
+  | RawGroup rg -> sprintf "RawGroup (%s)" rg
+  | Group g -> sprintf "Group (%s)" (List.map token_to_string g |> String.concat ", ")
+  | Operator Add -> "Add"
+  | Operator Subtract -> "Subtract"
+  | Operator Multiply -> "Multiply"
+  | Operator Divide -> "Divide"
+  | Operator Modulo -> "Modulo"
+  | Operator Exponent -> "Exponent"
 
 
 module Lexer =
@@ -54,34 +66,38 @@ module Lexer =
 
     if s |> Seq.toList |> List.head |> is_open then
       let folder (l_open, l_close, acc) chr =
-        let c_open = l_open + (if is_open chr then 1 else 0) in
-        let c_close = l_close + (if is_close chr then 1 else 0) in
+        let tally goal counter = counter + (if goal = chr then 1 else 0) in
+        let c_open = tally '(' l_open in
+        let c_close = tally ')' l_close in
+        let next_acc = if c_open <> 0 && c_open = c_close then acc else acc ^ chr.ToString() in
 
-        c_open, c_close, if c_open <> 0 && c_open = c_close then acc else acc ^ chr.ToString()
+        c_open, c_close, next_acc
       in
 
       let _, _, literal = List.fold folder (0, 0, "") (Seq.toList s) in
-      let tliteral = literal |> Seq.toList |> List.tail |> System.String.Concat
-      Some (generate_ast tliteral), s[literal.Length..]
+      Some (RawGroup literal[1..]), s[literal.Length+1..]
     else
       None, s
 
 
   let lex_token (s: string) =
-    let lexers = [lex_number; lex_operator] in
+    let lexers = [lex_number; lex_group; lex_operator] in
     let found_lexer = lexers |> List.find (fun lexer ->
       match lexer s with
       | Some _, _ -> true
       | _ -> false) in
     found_lexer s
 
-  let generate_ast (s: string) =
+  let rec generate_ast (s: string) =
     let head = lex_token s in
     let first_token, _ = head in
 
     let optional_ast = head |> List.unfold (
       function
       | _, "" -> None
+      | Some (RawGroup g), u ->
+        let sub_group = Some (Group (generate_ast g)) in
+        Some (sub_group, (sub_group, u))
       | _, u ->
         let next_p, next_u = lex_token u in
         Some (next_p, (next_p, next_u))) in
@@ -92,24 +108,17 @@ module Lexer =
 
     [first_token.Value] @ tail
 
-
-let token_to_string = function
-  | Number n -> sprintf "Number(%f)" n
-  | Operator Add -> "Add"
-  | Operator Subtract -> "Subtract"
-  | Operator Multiply -> "Multiply"
-  | Operator Divide -> "Divide"
-  | Operator Modulo -> "Modulo"
-  | Operator Exponent -> "Exponent"
-
   // (fun acc (p, u) -> acc @ [lex_token u]) (lex_token s)
+
+let print_ast ast =
+  List.iter (fun t -> t |> token_to_string |> printfn "%s") ast
 
 let print_tokens ast =
   List.iter (fun t -> printfn "%s" (token_to_string t)) ast
 
-let pemdas = [Exponent; Multiply; Divide; Add; Subtract]
-
 module Evaluater =
+  let pemdas = [Exponent; Multiply; Divide; Add; Subtract]
+
   let apply_operation a b = function
     | Add -> a + b
     | Subtract -> a - b
@@ -144,8 +153,7 @@ module Evaluater =
 
 let evaluate_expression expression = expression |> Lexer.generate_ast |> Evaluater.evaluate_ast
 
-printfn "%f" (evaluate_expression "23+13.5*3/4")
-printfn "%f" (evaluate_expression "8+4-2^4/10")
+// printfn "%f" (evaluate_expression "23+13.5*3/4")
+// printfn "%f" (evaluate_expression "8+4-2^4/10")
 
-let a, b = Lexer.lex_group "(1+2+(3+4)+3)+10"
-printfn "%s" a.Value
+print_ast (Lexer.generate_ast "(23+(135-32)+2)*3/4")
