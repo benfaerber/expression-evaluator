@@ -40,11 +40,15 @@ let sleep () = if does_sleep then Async.Sleep(500) |> Async.RunSynchronously
 module Lexer =
 
   let lex_number (s: string) =
+    let first = s |> Seq.toList |> List.head in
+    let is_negative = first = '~' in
+
     let is_digit = function
     | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' -> true
     | _ -> false in
 
-    let literal = Seq.toList s |> List.unfold (
+    let trimmed, scalar, offset = if is_negative then s[1..], -1., 1 else s, 1., 0 in
+    let literal = Seq.toList trimmed |> List.unfold (
       function
       | [] -> None
       | hd :: tl ->
@@ -53,7 +57,7 @@ module Lexer =
 
     match literal with
     | "" -> None, s
-    | l -> Some (Number (float l)), s[l.Length..]
+    | l -> Some (Number ((float l) * scalar)), s[l.Length+offset..]
 
 
   let lex_operator (s: string) =
@@ -85,13 +89,17 @@ module Lexer =
       in
 
       let _, _, literal = List.fold folder (0, 0, "") (Seq.toList s) in
-      debug_print (sprintf "Group Literal: %s" literal[1..])
+      // debug_print (sprintf "Group Literal: %s" literal[1..])
       Some (RawGroup literal[1..]), s[literal.Length+1..]
     else
       None, s
 
   let lex_token (s: string) =
-    let lexers = [lex_number; lex_group; lex_operator] in
+    (* Order :
+        - First attempt to find a number, it could start with '-' which means negative number not subtract
+        - Second attempt to find a group, if it starts with '(' and has a matching close paren, it is a group
+        - Finally check if it is an arethmetic operator *)
+    let lexers = [ lex_number; lex_group; lex_operator; ] in
     let found_lexer = lexers |> List.find (fun lexer ->
       match lexer s with
       | Some _, _ -> true
@@ -145,8 +153,10 @@ module Evaluater =
   let rec evaluate_operator current_op = function
     | Number a :: Operator op :: Number b :: tl ->
       if op = current_op then
-        debug_print (sprintf "Evauluating %s Operations" (Operator op |> string_of_token))
-        evaluate_operator current_op ([Number (apply_operation a b op)] @ tl)
+        let res = evaluate_operator current_op ([Number (apply_operation a b op)] @ tl) in
+        debug_print (sprintf "Evaluating %s Operations:" (Operator op |> string_of_token))
+        print_ast res
+        res
       else
         debug_print (sprintf "Looking for %s Operations" (Operator current_op |> string_of_token))
         [ Number a; Operator op; ] @ evaluate_operator current_op ([Number b] @ tl)
@@ -159,7 +169,6 @@ module Evaluater =
         match ops with
         | [] -> pemdas
         | x -> x in
-      // (List.map token_to_string lst) |> String.concat ", " |> printfn "%s"
 
       sleep ()
       match ast with
@@ -180,20 +189,30 @@ module Evaluater =
     | [Number n] -> n
     | _ -> 0
 
-let evaluate_expression expression =
-  let ast = expression |> Lexer.generate_ast in
-  debug_print "Complete AST: "
-  print_ast ast
-  debug_print ""
+module Expression =
+  let debug_expression_printer exp ast =
+    debug_print "Complete AST:"
+    debug_print "------------"
+    debug_print (sprintf "Raw Expression: %s" exp)
+    print_ast ast
+    debug_print "-------------"
 
-  Evaluater.evaluate_ast ast
+  let evaluate exp =
+    let ast = exp |> Lexer.generate_ast in
+    debug_expression_printer exp ast
+    ast |> Evaluater.evaluate_ast
+
+  let print_result exp =
+    printfn "%f" (exp |> evaluate)
 
 let complex_expression_1 = "(23+(135-32)+2)*3/4"
 let complex_expression_2 = "73/3+(4^2+(8-3))"
+let complex_expression_3 = "~40+20"
 
 
-print_ast (Lexer.generate_ast complex_expression_2)
+// print_ast (Lexer.generate_ast complex_expression_2)
 // printfn "%f" (evaluate_expression "23+13.5*3/4")
 // printfn "%f" (evaluate_expression "8+4-2^4/10")
-// printfn "%f" (evaluate_expression complex_expression_1)
-printfn "%f" (evaluate_expression complex_expression_2)
+printfn "%f" (Expression.evaluate complex_expression_1)
+printfn "%f" (Expression.evaluate complex_expression_2)
+printfn "%f" (Expression.evaluate complex_expression_3)
