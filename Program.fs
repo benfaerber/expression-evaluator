@@ -23,13 +23,16 @@ let rec string_of_token = function
   | Operator Modulo -> "Modulo"
   | Operator Exponent -> "Exponent"
 
-let print_ast ast =
-  printfn "AST:"
-  List.iter (fun t -> t |> string_of_token |> printfn "%s") ast
-  printfn ""
+let should_debug_print = true
+let debug_print value =
+  if should_debug_print then
+    printfn "%s" value
 
-let print_tokens ast =
-  List.iter (fun t -> printfn "%s" (string_of_token t)) ast
+let print_token token = token |> string_of_token |> debug_print
+
+let print_ast ast =
+  List.iter print_token ast
+  debug_print ""
 
 let does_sleep = true
 let sleep () = if does_sleep then Async.Sleep(500) |> Async.RunSynchronously
@@ -71,10 +74,7 @@ module Lexer =
     | _ -> None, s
 
   let lex_group (s: string) =
-    let is_open c = c = '(' in
-    let is_close c = c = ')' in
-
-    if s |> Seq.toList |> List.head |> is_open then
+    if (s |> Seq.toList |> List.head) = '(' then
       let folder (l_open, l_close, acc) chr =
         let tally goal counter = counter + (if goal = chr then 1 else 0) in
         let c_open = tally '(' l_open in
@@ -85,7 +85,7 @@ module Lexer =
       in
 
       let _, _, literal = List.fold folder (0, 0, "") (Seq.toList s) in
-      printfn "Group Literal: %s" literal[1..]
+      debug_print (sprintf "Group Literal: %s" literal[1..])
       Some (RawGroup literal[1..]), s[literal.Length+1..]
     else
       None, s
@@ -107,12 +107,10 @@ module Lexer =
     let head = lex_token s in
     let first_token, _ = head in
 
-    printfn "RR: %s" s
     let optional_ast = head |> List.unfold (
       function
       | _, "" -> None
       | Some (RawGroup g), u ->
-        printfn "U: %s" u
         let sub_group = Some (Group (generate_ast g)) in
         print_ast (generate_ast g)
         Some (sub_group, (sub_group, u))
@@ -132,7 +130,8 @@ module Lexer =
 
 
 module Evaluater =
-  let pemdas = [Exponent; Multiply; Divide; Add; Subtract]
+  // Parens are evauluated seperatetly from this list
+  let pemdas = [ Exponent; Multiply; Divide; Add; Subtract; ]
 
   let apply_operation a b = function
     | Add -> a + b
@@ -146,8 +145,10 @@ module Evaluater =
   let rec evaluate_operator current_op = function
     | Number a :: Operator op :: Number b :: tl ->
       if op = current_op then
+        debug_print (sprintf "Evauluating %s Operations" (Operator op |> string_of_token))
         evaluate_operator current_op ([Number (apply_operation a b op)] @ tl)
       else
+        debug_print (sprintf "Looking for %s Operations" (Operator current_op |> string_of_token))
         [ Number a; Operator op; ] @ evaluate_operator current_op ([Number b] @ tl)
     | r -> r
 
@@ -181,9 +182,9 @@ module Evaluater =
 
 let evaluate_expression expression =
   let ast = expression |> Lexer.generate_ast in
-  printfn "Complete AST: "
+  debug_print "Complete AST: "
   print_ast ast
-  printfn ""
+  debug_print ""
 
   Evaluater.evaluate_ast ast
 

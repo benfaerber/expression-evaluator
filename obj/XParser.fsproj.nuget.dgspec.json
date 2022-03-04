@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "/Users/ben/Code/XParser/XParser.fsproj": {}
+    "C:\\Users\\bfaerber\\Documents\\Code\\XParser\\XParser.fsproj": {}
   },
   "projects": {
-    "/Users/ben/Code/XParser/XParser.fsproj": {
+    "C:\\Users\\bfaerber\\Documents\\Code\\XParser\\XParser.fsproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/ben/Code/XParser/XParser.fsproj",
+        "projectUniqueName": "C:\\Users\\bfaerber\\Documents\\Code\\XParser\\XParser.fsproj",
         "projectName": "XParser",
-        "projectPath": "/Users/ben/Code/XParser/XParser.fsproj",
-        "packagesPath": "/Users/ben/.nuget/packages/",
-        "outputPath": "/Users/ben/Code/XParser/obj/",
+        "projectPath": "C:\\Users\\bfaerber\\Documents\\Code\\XParser\\XParser.fsproj",
+        "packagesPath": "C:\\Users\\bfaerber\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\bfaerber\\Documents\\Code\\XParser\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/ben/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\bfaerber\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net6.0"
@@ -55,7 +55,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/6.0.101/RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\6.0.102\\RuntimeIdentifierGraph.json"
         }
       }
     }
