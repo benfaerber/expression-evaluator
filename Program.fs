@@ -23,7 +23,7 @@ let rec string_of_token = function
   | Operator Modulo -> "Modulo"
   | Operator Exponent -> "Exponent"
 
-let is_debug_mode = true
+let is_debug_mode = false
 let debug_print value =
   if is_debug_mode then
     printfn "%s" value
@@ -107,18 +107,21 @@ module Lexer =
 
   let lex_group (s: string) =
     if (s |> Seq.toList |> List.head) = '(' then
-      let folder (l_open, l_close, going, acc) chr =
+      let folder (l_counter, going, acc) chr =
         if not going then
-          0, 0, false, acc
+          0, false, acc
         else
-          let tally goal counter = counter + (if goal = chr then 1 else 0) in
-          let c_open = tally '(' l_open in
-          let c_close = tally ')' l_close in
+          let counter = l_counter + (
+            match chr with
+            | '(' -> 1
+            | ')' -> -1
+            | _ -> 0
+          ) in
 
-          c_open, c_close, not (c_open = c_close), acc ^ chr.ToString()
+          counter, not (counter = 0), acc ^ chr.ToString()
       in
 
-      let _, _, _, literal = List.fold folder (0, 0, true, "") (Seq.toList s) in
+      let _, _, literal = List.fold folder (0, true, "") (Seq.toList s) in
       debug_print (sprintf "Group Literal: %s" literal[1..literal.Length-2])
       Some (RawGroup literal[1..literal.Length-2]), s[literal.Length..]
     else
