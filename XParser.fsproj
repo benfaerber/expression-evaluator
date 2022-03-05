@@ -6,6 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="Syntax.fs" />
+    <Compile Include="Lexer.fs" />
+    <Compile Include="Evaluator.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
