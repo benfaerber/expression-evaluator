@@ -3,9 +3,12 @@ module Lexer
 open Syntax
 
 let clean_expression (s: string) =
-  let allowed = "01234567890+-*/%^.()" |> Seq.toList in
+  let allowed = "01234567890+-*/%^.~()" |> Seq.toList in
   let cleaner = List.filter (fun l -> List.contains l allowed) in
-  s |> Seq.toList |> cleaner |> System.String.Concat
+
+  match s |> Seq.toList |> cleaner |> System.String.Concat with
+  | "" -> "0"
+  | r -> r
 
 
 let lex_number (s: string) =
