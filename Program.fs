@@ -1,6 +1,6 @@
-﻿
-let runner () =
+﻿let runner () =
   let is_repl_mode = true
+
   if is_repl_mode then
     Expression.repl ()
   else
